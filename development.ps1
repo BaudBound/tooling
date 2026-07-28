@@ -13,7 +13,7 @@ Launches development tasks across the BaudBound repositories.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet("Runner", "RunnerRelease", "Editor", "Website", "GetService", "Contracts", "Checks", "Builds", "Install")]
+    [ValidateSet("Runner", "Editor", "Website", "GetService", "Contracts", "Checks", "Builds", "Install")]
     [string]$Action,
 
     [ValidateSet("Desktop", "DesktopUi", "Service", "Status", "Install", "Checks", "Tests", "Build", "RunnerBuild")]
@@ -92,56 +92,21 @@ function Invoke-RunnerDevelopment {
     $runnerRoot = Get-WorkspaceRepositoryPath "baudbound"
     Push-Location $runnerRoot
     try {
-        if ($RunnerAction) {
-            if ($RunnerAction -eq "RunnerBuild") {
-                if (-not $RunnerBuildPlatform) {
-                    throw "RunnerBuild requires -Platform Both, Linux, or Windows."
-                }
-                Invoke-DevelopmentTask -Task $RunnerAction -RunnerBuildPlatform $RunnerBuildPlatform
-            } else {
-                Invoke-DevelopmentTask -Task $RunnerAction
-            }
-            return
+        if (-not $RunnerAction) {
+            throw "Runner actions require -RunnerAction."
         }
 
-        while ($true) {
-            $selectedAction = Select-DevelopmentAction
-            if (-not $selectedAction) {
-                return
+        if ($RunnerAction -eq "RunnerBuild") {
+            if (-not $RunnerBuildPlatform) {
+                throw "RunnerBuild requires -Platform Both, Linux, or Windows."
             }
-
-            $selectedPlatform = $null
-            if ($selectedAction -eq "RunnerBuild") {
-                $selectedPlatform = Select-RunnerBuildPlatform
-                if (-not $selectedPlatform) {
-                    continue
-                }
-            }
-
-            try {
-                if ($selectedAction -eq "RunnerBuild") {
-                    Invoke-DevelopmentTask -Task $selectedAction -RunnerBuildPlatform $selectedPlatform
-                } else {
-                    Invoke-DevelopmentTask -Task $selectedAction
-                }
-            } catch {
-                Write-Host ""
-                Write-Host "Development task failed" -ForegroundColor Red
-                Write-Host $_.Exception.Message -ForegroundColor Red
-            }
-            Wait-ForDevelopmentMenu
+            Invoke-DevelopmentTask -Task $RunnerAction -RunnerBuildPlatform $RunnerBuildPlatform
+        } else {
+            Invoke-DevelopmentTask -Task $RunnerAction
         }
     } finally {
         Pop-Location
     }
-}
-
-function Invoke-RunnerRelease {
-    $runnerReleaseTool = Join-Path $PSScriptRoot "release.ps1"
-    if (-not (Test-Path -LiteralPath $runnerReleaseTool -PathType Leaf)) {
-        throw "Runner release helper was not found at $runnerReleaseTool."
-    }
-    & $runnerReleaseTool
 }
 
 function Invoke-WorkspaceAction {
@@ -154,9 +119,6 @@ function Invoke-WorkspaceAction {
     switch ($SelectedAction) {
         "Runner" {
             Invoke-RunnerDevelopment -RunnerAction $SelectedRunnerAction -RunnerBuildPlatform $SelectedPlatform
-        }
-        "RunnerRelease" {
-            Invoke-RunnerRelease
         }
         "Editor" {
             Invoke-WorkspaceCommand "pnpm" @("dev") -Repository "editor"
@@ -199,23 +161,36 @@ function Invoke-WorkspaceAction {
 
 function Select-WorkspaceAction {
     $options = @(
-        [PSCustomObject]@{ Value = "Runner"; Label = "Runner"; Description = "Open the runner-owned development menu." },
-        [PSCustomObject]@{ Value = "RunnerRelease"; Label = "Runner release"; Description = "Open the guarded runner release menu." },
-        [PSCustomObject]@{ Value = "Editor"; Label = "Editor"; Description = "Start the editor development server." },
-        [PSCustomObject]@{ Value = "Website"; Label = "Website"; Description = "Start the website development server." },
-        [PSCustomObject]@{ Value = "GetService"; Label = "Get service"; Description = "Build and run get.baudbound.app with Docker Compose." },
+        [PSCustomObject]@{ Selectable = $false; Label = "RUNNER"; Description = "" },
+        [PSCustomObject]@{ Value = "RunnerDesktop"; Label = "Start desktop app"; Description = "Launch Tauri, Vite, and the Rust desktop runner." },
+        [PSCustomObject]@{ Value = "RunnerDesktopUi"; Label = "Start desktop UI only"; Description = "Start the Vite frontend at http://127.0.0.1:1420." },
+        [PSCustomObject]@{ Value = "RunnerService"; Label = "Run trigger service"; Description = "Run long-lived trigger listeners in the foreground." },
+        [PSCustomObject]@{ Value = "RunnerStatus"; Label = "Show runner status"; Description = "Print current runner and background-service health." },
+        [PSCustomObject]@{ Value = "RunnerInstall"; Label = "Install dependencies"; Description = "Install exact locked desktop UI packages." },
+        [PSCustomObject]@{ Value = "RunnerChecks"; Label = "Run checks"; Description = "Run Rust and desktop UI static checks." },
+        [PSCustomObject]@{ Value = "RunnerTests"; Label = "Run tests"; Description = "Run Rust and desktop UI tests." },
+        [PSCustomObject]@{ Value = "RunnerBuild"; Label = "Build runner"; Description = "Build the desktop UI and runner application." },
+        [PSCustomObject]@{ Value = "RunnerPackages"; Label = "Build runner packages"; Description = "Build local Windows, Linux, or both runner packages." },
+        [PSCustomObject]@{ Selectable = $false; Label = "EDITOR"; Description = "" },
+        [PSCustomObject]@{ Value = "Editor"; Label = "Start editor"; Description = "Start the editor development server." },
+        [PSCustomObject]@{ Selectable = $false; Label = "WEBSITE"; Description = "" },
+        [PSCustomObject]@{ Value = "Website"; Label = "Start website"; Description = "Start the website development server." },
+        [PSCustomObject]@{ Selectable = $false; Label = "GET SERVICE"; Description = "" },
+        [PSCustomObject]@{ Value = "GetService"; Label = "Start get service"; Description = "Build and run get.baudbound.app with Docker Compose." },
+        [PSCustomObject]@{ Selectable = $false; Label = "CONTRACTS"; Description = "" },
         [PSCustomObject]@{ Value = "Contracts"; Label = "Validate contracts"; Description = "Validate all shared JSON contracts." },
-        [PSCustomObject]@{ Value = "Checks"; Label = "Workspace checks"; Description = "Run static checks and tests across maintained code repositories." },
-        [PSCustomObject]@{ Value = "Builds"; Label = "Workspace builds"; Description = "Build the runner, editor, website, and get service." },
+        [PSCustomObject]@{ Selectable = $false; Label = "WORKSPACE"; Description = "" },
         [PSCustomObject]@{ Value = "Install"; Label = "Install dependencies"; Description = "Install locked runner UI, editor, and website dependencies." },
+        [PSCustomObject]@{ Value = "Checks"; Label = "Run checks"; Description = "Run static checks and tests across maintained code repositories." },
+        [PSCustomObject]@{ Value = "Builds"; Label = "Build all projects"; Description = "Build the runner, editor, website, and get service." },
         [PSCustomObject]@{ Value = $null; Label = "Exit"; Description = "Close the workspace helper." }
     )
-    return Select-TerminalMenu -Title "BaudBound workspace development" -Options $options
+    return Select-TerminalMenu -Title "BaudBound development" -Options $options
 }
 
-function Wait-ForWorkspaceMenu {
+function Wait-ForCompletedWorkspaceAction {
     Write-Host ""
-    Write-Host "Press any key to return to the workspace menu." -ForegroundColor DarkGray
+    Write-Host "Press any key to return to the development menu." -ForegroundColor DarkGray
     [Console]::ReadKey($true) | Out-Null
 }
 
@@ -237,14 +212,61 @@ try {
             Write-Host "Workspace helper closed."
             return
         }
+        $actionAttempted = $false
         try {
-            Invoke-WorkspaceAction -SelectedAction $selectedAction
+            switch ($selectedAction) {
+                "RunnerDesktop" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "Desktop"
+                }
+                "RunnerDesktopUi" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "DesktopUi"
+                }
+                "RunnerService" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "Service"
+                }
+                "RunnerStatus" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "Status"
+                }
+                "RunnerInstall" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "Install"
+                }
+                "RunnerChecks" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "Checks"
+                }
+                "RunnerTests" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "Tests"
+                }
+                "RunnerBuild" {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "Build"
+                }
+                "RunnerPackages" {
+                    $selectedPlatform = Select-RunnerBuildPlatform
+                    if ($selectedPlatform) {
+                        $actionAttempted = $true
+                        Invoke-WorkspaceAction -SelectedAction "Runner" -SelectedRunnerAction "RunnerBuild" -SelectedPlatform $selectedPlatform
+                    }
+                }
+                default {
+                    $actionAttempted = $true
+                    Invoke-WorkspaceAction -SelectedAction $selectedAction
+                }
+            }
         } catch {
             Write-Host ""
             Write-Host "Workspace task failed" -ForegroundColor Red
             Write-Host $_.Exception.Message -ForegroundColor Red
         }
-        Wait-ForWorkspaceMenu
+        if ($actionAttempted) {
+            Wait-ForCompletedWorkspaceAction
+        }
     }
 } finally {
     [Console]::InputEncoding = $previousConsoleInputEncoding

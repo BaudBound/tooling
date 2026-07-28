@@ -12,9 +12,22 @@ function Select-TerminalMenu {
         throw "The interactive menu requires at least one option."
     }
 
+    $selectableIndexes = @(
+        for ($index = 0; $index -lt $Options.Count; $index++) {
+            $selectableProperty = $Options[$index].PSObject.Properties["Selectable"]
+            if (-not $selectableProperty -or $selectableProperty.Value) {
+                $index
+            }
+        }
+    )
+    if ($selectableIndexes.Count -eq 0) {
+        throw "The interactive menu requires at least one selectable option."
+    }
+
     Clear-TerminalMenuInput
     Clear-Host
-    $selected = 0
+    $selectedPosition = 0
+    $selected = $selectableIndexes[$selectedPosition]
     $menuTop = [Console]::CursorTop
     $originalCursorVisibility = [Console]::CursorVisible
     [Console]::CursorVisible = $false
@@ -33,6 +46,12 @@ function Select-TerminalMenu {
             Write-TerminalMenuLine "" -Color DarkGray
 
             for ($index = 0; $index -lt $Options.Count; $index++) {
+                $selectableProperty = $Options[$index].PSObject.Properties["Selectable"]
+                if ($selectableProperty -and -not $selectableProperty.Value) {
+                    Write-TerminalMenuLine $Options[$index].Label -Color Cyan
+                    continue
+                }
+
                 $prefix = if ($index -eq $selected) { ">" } else { " " }
                 $line = "{0} {1,-24} {2}" -f $prefix, $Options[$index].Label, $Options[$index].Description
                 $color = if ($index -eq $selected) { "Yellow" } else { "Gray" }
@@ -40,8 +59,14 @@ function Select-TerminalMenu {
             }
 
             switch ([Console]::ReadKey($true).Key) {
-                "UpArrow" { $selected = ($selected - 1 + $Options.Count) % $Options.Count }
-                "DownArrow" { $selected = ($selected + 1) % $Options.Count }
+                "UpArrow" {
+                    $selectedPosition = ($selectedPosition - 1 + $selectableIndexes.Count) % $selectableIndexes.Count
+                    $selected = $selectableIndexes[$selectedPosition]
+                }
+                "DownArrow" {
+                    $selectedPosition = ($selectedPosition + 1) % $selectableIndexes.Count
+                    $selected = $selectableIndexes[$selectedPosition]
+                }
                 "Enter" {
                     Clear-Host
                     return $Options[$selected].Value

@@ -18,7 +18,7 @@ BaudBound/
   website/
 ```
 
-Runner development, local build, and release helpers live in this repository. They operate on the sibling `baudbound` repository. The main helper also coordinates tasks that span multiple repositories.
+Runner development, local build, and release helpers live in this repository. They operate on the sibling `baudbound` repository. The development helper coordinates tasks that span multiple repositories. Releases are handled separately by `release.ps1`.
 
 ## Usage
 
@@ -34,7 +34,7 @@ Run one action without the menu:
 ./development.ps1 -Action Checks
 ```
 
-Supported actions are `Runner`, `RunnerRelease`, `Editor`, `Website`, `GetService`, `Contracts`, `Checks`, `Builds`, and `Install`.
+Supported actions are `Runner`, `Editor`, `Website`, `GetService`, `Contracts`, `Checks`, `Builds`, and `Install`.
 
 Runner-only commands can also be started directly:
 
